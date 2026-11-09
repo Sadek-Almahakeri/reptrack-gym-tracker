@@ -1,0 +1,383 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RepTrack | Gym Tracker</title>
+  <style>
+    :root {
+      font-family: Inter, Arial, sans-serif;
+      color: #f3f4f6;
+      background: #0b1020;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      padding: 22px 7%;
+      border-bottom: 1px solid #293247;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo { font-size: 25px; font-weight: 800; }
+    .logo span, .accent { color: #818cf8; }
+    .tag { color: #a5aec2; font-size: 13px; }
+    main { max-width: 1050px; margin: 40px auto; padding: 0 22px; }
+    h1 { font-size: 34px; margin-bottom: 8px; }
+    p { color: #a5aec2; line-height: 1.5; }
+    .card {
+      background: #171e30;
+      border: 1px solid #303a52;
+      border-radius: 16px;
+      padding: 24px;
+      margin: 22px 0;
+    }
+    .days { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 12px 17px;
+      color: white;
+      background: #303b55;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.15); }
+    button.active, button.primary { background: #6366f1; }
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; }
+    .stat { background: #171e30; border: 1px solid #303a52;
+      padding: 20px; border-radius: 14px; }
+    .number { font-size: 29px; font-weight: 800; margin-top: 10px; }
+    .muted { color: #a5aec2; font-size: 13px; }
+    .progress { height: 11px; background: #303b55;
+      border-radius: 20px; overflow: hidden; margin: 18px 0; }
+    #bar { height: 100%; width: 0; background: #818cf8;
+      transition: width .3s; }
+    .exercise {
+      display: flex; align-items: center; gap: 15px;
+      border-bottom: 1px solid #303a52; padding: 19px 0;
+    }
+    .exercise:last-child { border-bottom: none; }
+    .exercise.done .exercise-name { text-decoration: line-through;
+      color: #9ca3af; }
+    .exercise-name { font-weight: 650; font-size: 16px; }
+    .check { width: 22px; height: 22px; accent-color: #818cf8;
+      cursor: pointer; flex-shrink: 0; }
+    .details { flex: 1; min-width: 120px; }
+    .fields { display: flex; gap: 8px; flex-wrap: wrap; }
+    input {
+      width: 72px; background: #0e1526; color: white;
+      border: 1px solid #39445e; border-radius: 8px;
+      padding: 10px; font-size: 14px;
+    }
+    input::placeholder { color: #8590a8; }
+    .add-form { display: flex; flex-wrap: wrap; gap: 10px; }
+    #newExercise { flex: 1; min-width: 180px; width: auto; }
+    .remove { color: #fca5a5; background: transparent; padding: 8px; }
+    .footer-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    @media(max-width: 650px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .exercise { align-items: flex-start; flex-wrap: wrap; }
+      .fields { width: 100%; margin-left: 37px; }
+      h1 { font-size: 27px; }
+      header { padding: 18px 22px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Rep<span>Track</span> 💪</div>
+    <div class="tag">YOUR PERSONAL GYM TRACKER</div>
+  </header>
+
+  <main>
+    <h1>Let's get stronger.</h1>
+    <p>Choose your workout, log your lifts, and track your progress.</p>
+
+    <section class="card">
+      <h2>Select your workout</h2>
+      <p>Follow your four-day training split.</p>
+      <div class="days" id="days"></div>
+    </section>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="muted">COMPLETED EXERCISES</div>
+        <div class="number" id="completed">0</div>
+      </div>
+      <div class="stat">
+        <div class="muted">TOTAL EXERCISES</div>
+        <div class="number" id="total">0</div>
+      </div>
+      <div class="stat">
+        <div class="muted">WORKOUT PROGRESS</div>
+        <div class="number accent" id="percentage">0%</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 id="workoutTitle">Upper Body A</h2>
+      <p>Check off exercises as you finish them.</p>
+      <div class="progress"><div id="bar"></div></div>
+      <div id="exerciseList"></div>
+      <div class="footer-actions" style="margin-top:20px">
+        <button class="primary" onclick="finishWorkout()">
+          Finish Workout
+        </button>
+        <button onclick="resetWorkout()">Reset Checklist</button>
+      </div>
+      <p id="message" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>Add an exercise</h2>
+      <p>Customize the workout you have selected.</p>
+      <form class="add-form" id="addForm">
+        <input id="newExercise" placeholder="Exercise name" required
+          maxlength="70">
+        <button class="primary" type="submit">+ Add Exercise</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Workout History</h2>
+      <p>Your finished workouts are saved in this browser.</p>
+      <div id="history"></div>
+    </section>
+  </main>
+
+  <script>
+    const starter = {
+      "Upper A": [
+        ["Barbell Bench Press", 4, 8],
+        ["Incline Dumbbell Press", 3, 10],
+        ["Lat Pulldown", 3, 10],
+        ["Seated Shoulder Press", 3, 10],
+        ["Bicep Curls", 3, 12],
+        ["Tricep Pushdowns", 3, 12],
+        ["Cable Crunches", 3, 15]
+      ],
+      "Lower Body": [
+        ["Leg Press", 3, 10],
+        ["Seated Hamstring Curl", 3, 12],
+        ["Hip Thrust", 3, 10],
+        ["Calf Raises", 3, 15],
+        ["Hip Abduction Machine", 3, 12],
+        ["Plank", 3, 30]
+      ],
+      "Upper B": [
+        ["Overhead Press", 4, 8],
+        ["Lateral Raises", 4, 12],
+        ["Chest Supported Rows", 3, 10],
+        ["Incline Bench Press", 3, 10],
+        ["Face Pulls", 3, 15],
+        ["Hammer Curls", 3, 12],
+        ["Overhead Tricep Extensions", 3, 12]
+      ],
+      "Full Body": [
+        ["Dumbbell Bench Press", 3, 10],
+        ["Lat Pulldown", 3, 10],
+        ["Leg Press", 3, 10],
+        ["Seated Cable Row", 3, 12],
+        ["Lateral Raises", 3, 15],
+        ["Bicep Curls", 3, 12],
+        ["Hanging Knee Raises", 3, 12]
+      ]
+    };
+
+    const STORAGE = "reptrack_v1";
+    function freshData() {
+      return {
+        workouts: Object.fromEntries(
+          Object.entries(starter).map(([day, exercises]) => [
+            day, exercises.map(([name, sets, reps]) => ({
+              name, sets, reps, weight: "", done: false
+            }))
+          ])
+        ),
+        history: []
+      };
+    }
+
+    function loadData() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE));
+        if (saved && saved.workouts && Array.isArray(saved.history)) {
+          return saved;
+        }
+      } catch (error) {
+        console.warn("Could not load saved workouts.", error);
+      }
+      return freshData();
+    }
+
+    let data = loadData();
+    let selectedDay = "Upper A";
+
+    function save() {
+      try {
+        localStorage.setItem(STORAGE, JSON.stringify(data));
+      } catch (error) {
+        document.getElementById("message").textContent =
+          "Your browser could not save changes. Check your storage settings.";
+      }
+    }
+
+    function render() {
+      const days = document.getElementById("days");
+      days.replaceChildren();
+
+      Object.keys(data.workouts).forEach(day => {
+        const button = document.createElement("button");
+        button.textContent = day;
+        button.className = day === selectedDay ? "active" : "";
+        button.onclick = () => {
+          selectedDay = day;
+          document.getElementById("message").textContent = "";
+          render();
+        };
+        days.appendChild(button);
+      });
+
+      document.getElementById("workoutTitle").textContent = selectedDay;
+      const exercises = data.workouts[selectedDay];
+      const list = document.getElementById("exerciseList");
+      list.replaceChildren();
+
+      exercises.forEach((exercise, index) => {
+        const row = document.createElement("div");
+        row.className = "exercise" + (exercise.done ? " done" : "");
+
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.className = "check";
+        check.checked = exercise.done;
+        check.setAttribute("aria-label", "Complete " + exercise.name);
+        check.onchange = () => {
+          exercise.done = check.checked;
+          save();
+          render();
+        };
+
+        const details = document.createElement("div");
+        details.className = "details";
+        const name = document.createElement("div");
+        name.className = "exercise-name";
+        name.textContent = exercise.name;
+        details.appendChild(name);
+
+        const fields = document.createElement("div");
+        fields.className = "fields";
+        [["Sets", "sets"], ["Reps", "reps"],
+          ["Lbs", "weight"]].forEach(([label, key]) => {
+          const input = document.createElement("input");
+          input.type = "number";
+          input.min = "0";
+          input.step = key === "weight" ? "0.5" : "1";
+          input.placeholder = label;
+          input.value = exercise[key];
+          input.setAttribute("aria-label", label + " for " + exercise.name);
+          input.onchange = () => {
+            const n = Number(input.value);
+            if (input.value === "") {
+              if (key === "weight") exercise[key] = "";
+              else input.value = exercise[key];
+            } else if (Number.isFinite(n) && n >= 0) {
+              exercise[key] = n;
+            } else {
+              input.value = exercise[key];
+            }
+            save();
+          };
+          fields.appendChild(input);
+        });
+
+        const remove = document.createElement("button");
+        remove.className = "remove";
+        remove.textContent = "Remove";
+        remove.onclick = () => {
+          if (confirm("Remove " + exercise.name + "?")) {
+            exercises.splice(index, 1);
+            save();
+            render();
+          }
+        };
+
+        row.append(check, details, fields, remove);
+        list.appendChild(row);
+      });
+
+      const done = exercises.filter(ex => ex.done).length;
+      const total = exercises.length;
+      const percent = total ? Math.round(done / total * 100) : 0;
+      document.getElementById("completed").textContent = done;
+      document.getElementById("total").textContent = total;
+      document.getElementById("percentage").textContent = percent + "%";
+      document.getElementById("bar").style.width = percent + "%";
+
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = document.getElementById("history");
+      history.replaceChildren();
+      if (data.history.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No completed workouts yet.";
+        history.appendChild(empty);
+        return;
+      }
+      data.history.slice().reverse().forEach(item => {
+        const entry = document.createElement("p");
+        entry.textContent = `${item.date} — ${item.day}: ` +
+          `${item.completed}/${item.total} exercises`;
+        history.appendChild(entry);
+      });
+    }
+
+    document.getElementById("addForm").onsubmit = event => {
+      event.preventDefault();
+      const field = document.getElementById("newExercise");
+      const name = field.value.trim();
+      if (!name) return;
+      data.workouts[selectedDay].push({
+        name, sets: 3, reps: 10, weight: "", done: false
+      });
+      field.value = "";
+      save();
+      render();
+    };
+
+    function resetWorkout() {
+      if (!confirm("Clear the checklist for " + selectedDay + "?")) return;
+      data.workouts[selectedDay].forEach(ex => ex.done = false);
+      save();
+      render();
+    }
+
+    function finishWorkout() {
+      const exercises = data.workouts[selectedDay];
+      const completed = exercises.filter(ex => ex.done).length;
+      if (completed === 0) {
+        document.getElementById("message").textContent =
+          "Complete at least one exercise first.";
+        return;
+      }
+      data.history.push({
+        date: new Date().toLocaleString(),
+        day: selectedDay,
+        completed,
+        total: exercises.length
+      });
+      exercises.forEach(ex => ex.done = false);
+      save();
+      render();
+      document.getElementById("message").textContent =
+        "Workout saved! Great job today. 💪";
+    }
+
+    render();
+  </script>
+</body>
+</html>
